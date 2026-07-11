@@ -1,0 +1,31 @@
+{
+  "name": "product-sales-postgres-source",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "host.docker.internal",
+    "database.port": "5431",
+    "database.user": "postgres",
+    "database.password": "password",
+    "database.dbname": "postgres",
+    "database.sslmode": "disable",
+    "topic.prefix": "product_sales",
+    "schema.include.list": "product_sales_bronze",
+    "table.include.list": "product_sales_bronze.bronze_customers,product_sales_bronze.bronze_items,product_sales_bronze.bronze_orders,product_sales_bronze.bronze_products,product_sales_bronze.bronze_stores,product_sales_bronze.bronze_supplies",
+    "plugin.name": "pgoutput",
+    "slot.name": "product_sales_connector",
+    "publication.name": "product_sales_publication",
+    "publication.autocreate.mode": "filtered",
+    "snapshot.mode": "initial",
+    "snapshot.locking.mode": "none",
+    "heartbeat.interval.ms": "10000",
+    "decimal.handling.mode": "string",
+    "time.precision.mode": "adaptive_time_microseconds",
+    "tombstones.on.delete": "true",
+    "transforms": "route",
+    "transforms.route.type": "io.debezium.transforms.ByLogicalTableRouter",
+    "transforms.route.topic.regex": "product_sales\\.([^.]+\\.[^.]+)",
+    "transforms.route.topic.replacement": "$1",
+    "transforms.route.key.enforce.uniqueness": "false"
+  }
+}

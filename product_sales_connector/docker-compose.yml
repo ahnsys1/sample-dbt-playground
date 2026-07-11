@@ -1,0 +1,125 @@
+networks:
+  product-sales-connector-network:
+    driver: bridge
+
+volumes:
+  kafka_data:
+    driver: local
+
+  postgres_data:
+    driver: local
+
+services:
+  kafka:
+    image: apache/kafka:4.1.1
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,CONTROLLER://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9093,PLAINTEXT_HOST://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - product-sales-connector-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9093 --list >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  kafka-client:
+    image: apache/kafka:4.1.1
+    command: ["tail", "-f", "/dev/null"]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9093
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - product-sales-connector-network
+
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:7.9.0
+    ports:
+      - "8082:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9093
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: product-sales-connect-cluster
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect_configs
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect_offsets
+      CONNECT_STATUS_STORAGE_TOPIC: _connect_statuses
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_PLUGIN_PATH: /usr/share/java,/etc/kafka-connect/plugins
+      DEBEZIUM_VERSION: 3.0.8
+    command:
+      - bash
+      - -c
+      - |
+        mkdir -p /etc/kafka-connect/jars
+        if [ ! -f /etc/kafka-connect/jars/postgresql.jar ]; then
+          curl -fsSL -o /etc/kafka-connect/jars/postgresql.jar https://jdbc.postgresql.org/download/postgresql-42.7.7.jar
+        fi
+        exec /etc/confluent/docker/run
+    volumes:
+      - ./connectors:/etc/kafka-connect/connectors:ro
+      - ./kafka-connect/jars:/etc/kafka-connect/jars
+      - ./kafka-connect/plugins:/etc/kafka-connect/plugins
+      - ./kafka-connect/jars:/etc/kafka-connect/jars/debezium-jdbc
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - product-sales-connector-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS --fail http://localhost:8083/connectors >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 90s
+
+  postgres:
+    image: postgres:17.7
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgres
+    ports:
+      - "5431:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data2
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 60s
+      timeout: 5s
+      retries: 5
+    networks:
+      - product-sales-connector-network
+    restart: always

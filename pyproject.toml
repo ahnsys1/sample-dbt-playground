@@ -1,0 +1,12 @@
+[project]
+name = "sample-dbt-playground"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "confluent-kafka>=2.12.2",
+    "dbt-core>=1.11.11",
+    "dbt-postgres>=1.10.2",
+    "psycopg2-binary>=2.9.12",
+]

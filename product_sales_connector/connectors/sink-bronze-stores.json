@@ -1,0 +1,19 @@
+{
+  "name": "sink-bronze-stores",
+  "config": {
+    "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics": "product_sales_bronze.bronze_stores",
+    "connection.url": "jdbc:postgresql://host.docker.internal:5432/postgres",
+    "connection.username": "postgres",
+    "connection.password": "password",
+    "insert.mode": "upsert",
+    "delete.enabled": "true",
+    "primary.key.mode": "record_key",
+    "primary.key.fields": "store_id",
+    "schema.evolution": "basic",
+    "database.time_zone": "UTC",
+    "quote.identifiers": "true",
+    "collection.name.format": "product_sales_bronze.bronze_stores"
+  }
+}
