@@ -1,5 +1,5 @@
 product_sales:
-  outputs:dbt
+  outputs:
     dev:
       dbname: postgres
       host: localhost
